@@ -190,7 +190,7 @@ class LocalCloudEmbedder():
         """ Evaluates all clouds in a differentiable way, use a batch approach.
         Use when embedding many small point clouds with small PointNets at once"""
         #cudnn cannot handle arrays larger than 2**16 in one go, uses batch
-        batch_size = 2**16-1
+        batch_size = 2**10-1
         n_batches = int((clouds.shape[0]-1)/batch_size)
         if self.nfeat_stn > 0:
             T = model.stn(clouds[:batch_size,:self.nfeat_stn,:])

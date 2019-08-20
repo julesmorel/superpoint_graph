@@ -33,8 +33,8 @@ from partition.provider import *
 def main():
     parser = argparse.ArgumentParser(description='Large-scale Point Cloud Semantic Segmentation with Superpoint Graphs')
     
-    parser.add_argument('--ROOT_PATH', default='datasets/s3dis')
-    parser.add_argument('--dataset', default='s3dis')
+    parser.add_argument('--ROOT_PATH', default='/home/jules/Project/superpoint_graph/test')
+    parser.add_argument('--dataset', default='test')
     #parameters
     parser.add_argument('--compute_geof', default=1, type=int, help='compute hand-crafted features of the local geometry')
     parser.add_argument('--k_nn_local', default=20, type=int, help='number of neighbors to describe the local geometry')
@@ -67,6 +67,9 @@ def main():
     elif args.dataset == 'custom_dataset':
         folders = ["train/", "test/"]
         n_labels = 10 #number of classes
+    elif args.dataset == 'test':
+        folders = ["train/", "test/"]
+        n_labels = 2 #number of classes
     else:
         raise ValueError('%s is an unknown data set' % args.dataset)
 
@@ -90,6 +93,8 @@ def main():
             files = glob.glob(data_folder + "*.txt")
         elif args.dataset == 'vkitti':
             files = glob.glob(data_folder + "*.npy")
+        elif args.dataset == 'test':
+            files = glob.glob(data_folder + "*.xyz")
             
         if (len(files) == 0):
             continue
@@ -108,6 +113,9 @@ def main():
                 str_file    = str_folder + file_name_short + '.h5'
             elif args.dataset=='vkitti':
                 data_file   = data_folder + file_name + ".npy"
+                str_file    = str_folder  + file_name + '.h5'
+            elif args.dataset=='test':
+                data_file   = data_folder + file_name + ".xyz"
                 str_file    = str_folder  + file_name + '.h5'
             i_file = i_file + 1
             print(str(i_file) + " / " + str(n_files) + "---> "+file_name)
@@ -141,12 +149,23 @@ def main():
                     if pruning:
                         xyz, rgb, labels, o = libply_c.prune(xyz.astype('f4'), args.voxel_width, rgb.astype('uint8'), labels.astype('uint8'), np.zeros(1, dtype='uint8'), n_labels, 0)
                     #---compute nn graph-------
+                elif args.dataset == 'test':
+                    xyz, labels = read_ascii(data_file)
+                    rgb = []
                 n_ver = xyz.shape[0]    
                 print("computing NN structure")
                 graph_nn, local_neighbors = compute_graph_nn_2(xyz, args.k_nn_adj, args.k_nn_local, voronoi = args.use_voronoi)
                 
                 if args.dataset=='s3dis':
                     is_transition = objects[graph_nn["source"]]!=objects[graph_nn["target"]]
+                elif args.dataset=='test':
+                    hard_labels = labels
+                    is_transition = hard_labels[graph_nn["source"]] != hard_labels[graph_nn["target"]]
+
+                    dump, objects = libply_c.connected_comp(n_ver,
+                                                            graph_nn["source"].astype('uint32'),
+                                                            graph_nn["target"].astype('uint32'),
+                                                            (is_transition == 0).astype('uint8'), 0)
                 elif args.dataset=='sema3d' and has_labels:
                     #sema has no object, we make them ourselves with label inpainting
                     hard_labels = np.argmax(labels[:,1:], 1)+1
@@ -266,6 +285,12 @@ def get_vkitti_info(args):
         'classes': 13,
         'inv_class_map': {0:'Terrain', 1:'Tree', 2:'Vegetation', 3:'Building', 4:'Road', 5:'GuardRail', 6:'TrafficSign', 7:'TrafficLight', 8:'Pole', 9:'Misc', 10:'Truck', 11:'Car', 12:'Van', 13:'None'},
     }
+def get_test_info(args):
+    #for now, no edge attributes
+    return {
+        'classes': 2,
+        'inv_class_map': {0:'wood', 1:'leaves'},
+    }
     
     
                 
@@ -304,6 +329,25 @@ def create_vkitti_datasets(args, test_seed_offset=0):
         if fname.endswith(".h5"):
             testlist.append(path+fname)
            
+    return tnt.dataset.ListDataset(trainlist,
+                                   functools.partial(graph_loader, train=True, args=args, db_path=args.ROOT_PATH)), \
+           tnt.dataset.ListDataset(testlist,
+                                   functools.partial(graph_loader, train=False, args=args, db_path=args.ROOT_PATH))
+
+
+def create_test_datasets(args, test_seed_offset=0):
+    """ Gets training and test datasets. """
+    # Load formatted clouds
+    testlist, trainlist = [], []
+    path = '{}/features_supervision/train/'.format(args.ROOT_PATH)
+    for fname in sorted(os.listdir(path)):
+        if fname.endswith(".h5"):
+            trainlist.append(path + fname)
+    path = '{}/features_supervision/test/'.format(args.ROOT_PATH)
+    for fname in sorted(os.listdir(path)):
+        if fname.endswith(".h5"):
+            testlist.append(path + fname)
+
     return tnt.dataset.ListDataset(trainlist,
                                    functools.partial(graph_loader, train=True, args=args, db_path=args.ROOT_PATH)), \
            tnt.dataset.ListDataset(testlist,
@@ -452,6 +496,9 @@ def graph_collate(batch):
     xyz = np.vstack(xyz)
     #if len(is_transition[0])>1:
     is_transition = torch.cat(is_transition, 0)
+    for l in labels:
+        print(len(l))
+    print('\n')
     labels = np.vstack(labels)
     
     edg_source = np.hstack(edg_source)

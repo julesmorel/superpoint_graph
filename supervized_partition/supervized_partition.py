@@ -57,13 +57,13 @@ from folderhierarchy import FolderHierachy
 def parse_args():
     parser = argparse.ArgumentParser(description='Large-scale Point Cloud Semantic Segmentation with Superpoint Graphs')
     # Dataset
-    parser.add_argument('--dataset', default='s3dis', help='Dataset name: sema3d|s3dis|vkitti')
+    parser.add_argument('--dataset', default='test', help='Dataset name: sema3d|s3dis|vkitti')
     parser.add_argument('--cvfold', default=1, type=int, help='Fold left-out for testing in leave-one-out setting (S3DIS)')
     parser.add_argument('--resume', default='', help='Loads a previously saved model.')
     parser.add_argument('--db_train_name', default='trainval', help='Training set (Sema3D)')
     parser.add_argument('--db_test_name', default='testred', help='Test set (Sema3D)')
-    parser.add_argument('--ROOT_PATH', default='datasets/s3dis')
-    parser.add_argument('--odir', default='results_emb/s3dis', help='folder for saving the trained model')
+    parser.add_argument('--ROOT_PATH', default='/home/jules/Project/superpoint_graph/test')
+    parser.add_argument('--odir', default='/home/jules/Project/superpoint_graph/results_emb/test', help='folder for saving the trained model')
     parser.add_argument('--spg_out', default=1, type=int, help='wether to compute the SPG for linking with the SPG semantic segmentation method')
     
     # Learning process arguments
@@ -78,7 +78,7 @@ def parse_args():
     parser.add_argument('--lr_decay', default=0.7, type=float, help='Multiplicative factor used on learning rate at `lr_steps`')
     parser.add_argument('--lr_steps', default='[20,35,45]', help='List of epochs where the learning rate is decreased by `lr_decay`')
     parser.add_argument('--momentum', default=0.9, type=float, help='Momentum')
-    parser.add_argument('--epochs', default=20, type=int, help='Number of epochs to train. If <=0, only testing will be done.')
+    parser.add_argument('--epochs', default=9, type=int, help='Number of epochs to train. If <=0, only testing will be done.')
     parser.add_argument('--batch_size', default=5, type=int, help='Batch size')
     parser.add_argument('--optim', default='adam', help='Optimizer: sgd|adam')
     parser.add_argument('--grad_clip', default=1, type=float, help='Element-wise clipping of gradient. If 0, does not clip')
@@ -98,14 +98,14 @@ def parse_args():
     parser.add_argument('--ptn_norm', default='batch', help='Type of norm layers in PointNets, "batch or "layer" or "group"')
     parser.add_argument('--ptn_n_group', default=2, type=int, help='Number of groups in groupnorm. Only compatible with ptn_norm=group')
     parser.add_argument('--stn_as_global', default=1, type=int, help='Wether to use the STN output as a global variable')
-    parser.add_argument('--global_feat', default='eXYrgb', help='Use rgb to embed points')
-    parser.add_argument('--use_rgb', default=1, type=int , help='Wether to use radiometry value to use for cloud embeding')
-    parser.add_argument('--ptn_mem_monger', default=0, type=int, help='Bool, save GPU memory by recomputing PointNets in back propagation.')
+    parser.add_argument('--global_feat', default='eXY', help='Use rgb to embed points')
+    parser.add_argument('--use_rgb', default=0, type=int , help='Wether to use radiometry value to use for cloud embeding')
+    parser.add_argument('--ptn_mem_monger', default=1, type=int, help='Bool, save GPU memory by recomputing PointNets in back propagation.')
     #parser.add_argument('--cascade_color_neigh', default=0, type=int, help='Wether to feed the color to the residual embeddings')
 
     #Loss
-    parser.add_argument('--loss_weight', default='crosspartition', help='[none, proportional, sqrt, seal, crosspartition] which loss weighting scheme to choose to train the model. unweighted: use classic cross_entropy loss, proportional: weight inversely by transition count,  SEAL: use SEAL loss as proposed in http://jankautz.com/publications/LearningSuperpixels_CVPR2018.pdf, crosspartition : our crosspartition weighting scheme')
-    parser.add_argument('--loss', default='TVH_zhang', help='Structure of the loss : first term for intra edge (chose from : tv, laplacian, TVH (pseudo-huber)), second one for interedge (chose from: zhang, scad, tv)')
+    parser.add_argument('--loss_weight', default='none', help='[none, proportional, sqrt, seal, crosspartition] which loss weighting scheme to choose to train the model. unweighted: use classic cross_entropy loss, proportional: weight inversely by transition count,  SEAL: use SEAL loss as proposed in http://jankautz.com/publications/LearningSuperpixels_CVPR2018.pdf, crosspartition : our crosspartition weighting scheme')
+    parser.add_argument('--loss', default='tv_zhang', help='Structure of the loss : first term for intra edge (chose from : tv, laplacian, TVH (pseudo-huber)), second one for interedge (chose from: zhang, scad, tv)')
     parser.add_argument('--transition_factor', default=5, type=float, help='Weight for transition edges in the graph structured contrastive loss')
     parser.add_argument('--dist_type', default='euclidian', help='[euclidian, intrisic, scalar] How to measure the distance between embeddings')
 
@@ -114,7 +114,7 @@ def parse_args():
     parser.add_argument('--max_ver_train', default=1e4, type=int, help='Size of the subgraph taken in each point cloud for the training')
     parser.add_argument('--k_nn_adj', default=5, type=int, help='number of neighbors for the adjacency graph')
     parser.add_argument('--k_nn_local', default=20, type=int, help='number of neighbors to describe the local geometry')
-    parser.add_argument('--reg_strength', default=1, type = float, help='Regularization strength or the generalized minimum partition problem.')
+    parser.add_argument('--reg_strength', default=0.1, type = float, help='Regularization strength or the generalized minimum partition problem.')
     parser.add_argument('--CP_cutoff', default=10, type=int, help='Minimum accepted component size in cut pursuit. if negative, chose with respect tot his number and the reg_strength as explained in the paper')
     parser.add_argument('--spatial_emb', default=0.2, type=float, help='Weight of xyz in the spatial embedding. When 0 : no xyz')
     parser.add_argument('--edge_weight_threshold', default=-0.5, type=float, help='Edge weight value when diff>1. if negative, then switch to weight = exp(-diff * edge_weight_threshold)')
@@ -123,6 +123,10 @@ def parse_args():
     parser.add_argument('--BR_tolerance', default=1, type=int, help='How far an edge must be from an actual transition to be considered a true positive')
 
     args = parser.parse_args()
+
+    import torch
+    print(torch.__version__)
+    print(torch.version.cuda)
 
     args.start_epoch = 0
     args.lr_steps = ast.literal_eval(args.lr_steps)
@@ -145,6 +149,9 @@ def dataset(args):
     elif args.dataset=='vkitti':
         dbinfo = get_vkitti_info(args)
         create_dataset = create_vkitti_datasets
+    elif args.dataset == 'test':
+        dbinfo = get_test_info(args)
+        create_dataset = create_test_datasets
     else:
         raise NotImplementedError('Unknown dataset ' + args.dataset)
     return dbinfo, create_dataset
@@ -322,7 +329,7 @@ def embed(args):
                     clouds, clouds_global, nei = clouds_data
                     clouds_data = (clouds.to('cuda',non_blocking=True),clouds_global.to('cuda',non_blocking=True),nei) 
                 
-                if args.dataset=='sema3d':
+                if args.dataset=='test':
                     embeddings = ptnCloudEmbedder.run_batch_cpu(model, *clouds_data, xyz)
                 else:
                     embeddings = ptnCloudEmbedder.run_batch(model, *clouds_data, xyz)
@@ -353,12 +360,12 @@ def embed(args):
                         pass
                     write_spg(spg_file, graph_sp, pred_components, pred_in_component)
 
-                    # Debugging purpose - write the embedding file and an exemple of scalar files
-                    # if bidx % 0 == 0:
-                    #     embedding2ply(os.path.join(folder_hierarchy.emb_folder , fname[0][:-3] + '_emb.ply'), xyz, embeddings.detach().cpu().numpy())
-                    #     scalar2ply(os.path.join(folder_hierarchy.scalars , fname[0][:-3] + '_elevation.ply') , xyz, clouds_data[1][:,1].cpu())
-                    #     edg_class = is_transition + 2*pred_transition
-                    #     edge_class2ply2(os.path.join(folder_hierarchy.emb_folder , fname[0][:-3] + '_transition.ply'), edg_class, xyz, edg_source, edg_target)
+                    #Debugging purpose - write the embedding file and an exemple of scalar files
+                    if bidx % 0 == 0:
+                        embedding2ply(os.path.join(folder_hierarchy.emb_folder , fname[0][:-3] + '_emb.ply'), xyz, embeddings.detach().cpu().numpy())
+                        scalar2ply(os.path.join(folder_hierarchy.scalars , fname[0][:-3] + '_elevation.ply') , xyz, clouds_data[1][:,1].cpu())
+                        edg_class = is_transition + 2*pred_transition
+                        edge_class2ply2(os.path.join(folder_hierarchy.emb_folder , fname[0][:-3] + '_transition.ply'), edg_class, xyz, edg_source, edg_target)
             if len(is_transition)>1:
                 res_name = folder_hierarchy.outputdir+'/res.h5'
                 res_file = h5py.File(res_name, 'w')

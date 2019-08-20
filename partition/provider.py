@@ -377,6 +377,26 @@ def read_ply(filename):
         except ValueError:
             return xyz, rgb
 #------------------------------------------------------------------------------
+def iter_loadtxt(filename, delimiter=' ', dtype=float):
+    def iter_func():
+        with open(filename, 'r') as infile:
+            for line in infile:
+                line = line.rstrip().split(delimiter)
+                for item in line:
+                    yield dtype(item)
+        iter_loadtxt.rowlength = len(line)
+
+    data = np.fromiter(iter_func(), dtype=dtype)
+    data = data.reshape((-1, iter_loadtxt.rowlength))
+    return data
+
+def read_ascii(filename):
+    path = os.path.dirname(os.path.realpath(__file__))
+    txt = iter_loadtxt(os.path.join(path, filename))
+    pts = txt[:, [0, 1, 2]]
+    lab = np. array(txt[:, 3], dtype='int')
+    return  pts.astype('float32'), lab
+#------------------------------------------------------------------------------
 def read_las(filename):
     """convert from a las file with no rgb"""
     #---read the ply file--------
@@ -515,7 +535,7 @@ def read_features(file_name):
     #---fill the arrays---
     geof = data_file["geof"][:]
     xyz = data_file["xyz"][:]
-    rgb = data_file["rgb"][:]
+    #rgb = data_file["rgb"][:]
     source = data_file["source"][:]
     target = data_file["target"][:]
 
@@ -523,7 +543,7 @@ def read_features(file_name):
     graph_nn = dict([("is_nn", True)])
     graph_nn["source"] = source
     graph_nn["target"] = target
-    return geof, xyz, rgb, graph_nn, labels
+    return geof, xyz, graph_nn, labels
 #------------------------------------------------------------------------------
 def write_spg(file_name, graph_sp, components, in_component):
     """save the partition and spg information"""

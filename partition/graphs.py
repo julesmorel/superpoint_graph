@@ -49,18 +49,18 @@ def compute_graph_nn_2(xyz, k_nn1, k_nn2, voronoi = 0.0):
         keep_edges = graph["distances"]<voronoi
         graph["source"] = graph["source"][keep_edges]
         graph["target"] = graph["target"][keep_edges]
-        
+
         graph["source"] = np.hstack((graph["source"], np.matlib.repmat(range(0, n_ver)
             , k_nn1, 1).flatten(order='F').astype('uint32')))
         neighbors = neighbors[:, :k_nn1]
         graph["target"] =  np.hstack((graph["target"],np.transpose(neighbors.flatten(order='C')).astype('uint32')))
-        
+
         edg_id = graph["source"] + n_ver * graph["target"]
-        
+
         dump, unique_edges = np.unique(edg_id, return_index = True)
         graph["source"] = graph["source"][unique_edges]
         graph["target"] = graph["target"][unique_edges]
-       
+
         graph["distances"] = graph["distances"][keep_edges]
     else:
         neighbors = neighbors[:, :k_nn1]
@@ -104,13 +104,14 @@ def compute_sp_graph(xyz, d_max, in_component, components, labels, n_labels):
     del tri, interface
     edges = np.hstack((edg1, edg2, edg3, edg4 ,edg5, edg6, edg1r, edg2r,
                        edg3r, edg4r ,edg5r, edg6r))
+    print(edges.shape)                   
     del edg1, edg2, edg3, edg4 ,edg5, edg6, edg1r, edg2r, edg3r, edg4r, edg5r, edg6r
     edges = np.unique(edges, axis=1)
-    
+
     if d_max > 0:
         dist = np.sqrt(((xyz[edges[0,:]]-xyz[edges[1,:]])**2).sum(1))
         edges = edges[:,dist<d_max]
-	
+
     #---sort edges by alpha numeric order wrt to the components of their source/target---
     n_edg = len(edges[0])
     edge_comp = in_component[edges]
