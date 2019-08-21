@@ -71,7 +71,7 @@ def main():
         folders = ["01/", "02/", "03/", "04/", "05/"]
         n_labels = 2 #number of classes
     elif args.dataset == 'trunkbranchleaf':
-        folders = ["01/", "02/", "03/", "04/", "05/", "06/", "07/", "08/", "09/", "10/"]
+        folders = ["01/", "02/", "03/", "04/", "05/"]
         n_labels = 3 #number of classes
     else:
         raise ValueError('%s is an unknown data set' % args.dataset)
