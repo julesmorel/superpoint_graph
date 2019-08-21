@@ -33,8 +33,8 @@ from partition.provider import *
 def main():
     parser = argparse.ArgumentParser(description='Large-scale Point Cloud Semantic Segmentation with Superpoint Graphs')
     
-    parser.add_argument('--ROOT_PATH', default='/home/jules/Project/superpoint_graph/test')
-    parser.add_argument('--dataset', default='test')
+    parser.add_argument('--ROOT_PATH', default='/home/jules/Project/superpoint_graph/woodleaf')
+    parser.add_argument('--dataset', default='woodleaf')
     #parameters
     parser.add_argument('--compute_geof', default=1, type=int, help='compute hand-crafted features of the local geometry')
     parser.add_argument('--k_nn_local', default=20, type=int, help='number of neighbors to describe the local geometry')
@@ -67,8 +67,8 @@ def main():
     elif args.dataset == 'custom_dataset':
         folders = ["train/", "test/"]
         n_labels = 10 #number of classes
-    elif args.dataset == 'test':
-        folders = ["train/", "test/"]
+    elif args.dataset == 'woodleaf':
+        folders = ["01/", "02/", "03/", "04/", "05/"]
         n_labels = 2 #number of classes
     else:
         raise ValueError('%s is an unknown data set' % args.dataset)
@@ -149,7 +149,7 @@ def main():
                     if pruning:
                         xyz, rgb, labels, o = libply_c.prune(xyz.astype('f4'), args.voxel_width, rgb.astype('uint8'), labels.astype('uint8'), np.zeros(1, dtype='uint8'), n_labels, 0)
                     #---compute nn graph-------
-                elif args.dataset == 'test':
+                elif args.dataset == 'woodleaf':
                     xyz, labels = read_ascii(data_file)
                     rgb = []
                 n_ver = xyz.shape[0]    
@@ -158,7 +158,7 @@ def main():
                 
                 if args.dataset=='s3dis':
                     is_transition = objects[graph_nn["source"]]!=objects[graph_nn["target"]]
-                elif args.dataset=='test':
+                elif args.dataset=='woodleaf':
                     hard_labels = labels
                     is_transition = hard_labels[graph_nn["source"]] != hard_labels[graph_nn["target"]]
 
@@ -335,15 +335,17 @@ def create_vkitti_datasets(args, test_seed_offset=0):
                                    functools.partial(graph_loader, train=False, args=args, db_path=args.ROOT_PATH))
 
 
-def create_test_datasets(args, test_seed_offset=0):
+def create_woodleaf_datasets(args, test_seed_offset=0):
     """ Gets training and test datasets. """
     # Load formatted clouds
     testlist, trainlist = [], []
-    path = '{}/features_supervision/train/'.format(args.ROOT_PATH)
-    for fname in sorted(os.listdir(path)):
-        if fname.endswith(".h5"):
-            trainlist.append(path + fname)
-    path = '{}/features_supervision/test/'.format(args.ROOT_PATH)
+    for n in range(1, 5):
+        if n != args.cvfold:
+            path = '{}/features_supervision/0{:d}/'.format(args.ROOT_PATH, n)
+            for fname in sorted(os.listdir(path)):
+                if fname.endswith(".h5"):
+                    trainlist.append(path + fname)
+    path = '{}/features_supervision/0{:d}/'.format(args.ROOT_PATH)
     for fname in sorted(os.listdir(path)):
         if fname.endswith(".h5"):
             testlist.append(path + fname)

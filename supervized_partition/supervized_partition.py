@@ -149,9 +149,9 @@ def dataset(args):
     elif args.dataset=='vkitti':
         dbinfo = get_vkitti_info(args)
         create_dataset = create_vkitti_datasets
-    elif args.dataset == 'test':
+    elif args.dataset == 'woodleaf':
         dbinfo = get_test_info(args)
-        create_dataset = create_test_datasets
+        create_dataset = create_woodleaf_datasets
     else:
         raise NotImplementedError('Unknown dataset ' + args.dataset)
     return dbinfo, create_dataset
@@ -329,7 +329,7 @@ def embed(args):
                     clouds, clouds_global, nei = clouds_data
                     clouds_data = (clouds.to('cuda',non_blocking=True),clouds_global.to('cuda',non_blocking=True),nei) 
                 
-                if args.dataset=='test':
+                if (args.dataset=='sema3d') or (args.dataset=='woodleaf'):
                     embeddings = ptnCloudEmbedder.run_batch_cpu(model, *clouds_data, xyz)
                 else:
                     embeddings = ptnCloudEmbedder.run_batch(model, *clouds_data, xyz)
