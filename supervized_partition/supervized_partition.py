@@ -57,13 +57,13 @@ from folderhierarchy import FolderHierachy
 def parse_args():
     parser = argparse.ArgumentParser(description='Large-scale Point Cloud Semantic Segmentation with Superpoint Graphs')
     # Dataset
-    parser.add_argument('--dataset', default='test', help='Dataset name: sema3d|s3dis|vkitti')
+    parser.add_argument('--dataset', default='trunkbranchleaf', help='Dataset name: sema3d|s3dis|vkitti')
     parser.add_argument('--cvfold', default=1, type=int, help='Fold left-out for testing in leave-one-out setting (S3DIS)')
     parser.add_argument('--resume', default='', help='Loads a previously saved model.')
     parser.add_argument('--db_train_name', default='trainval', help='Training set (Sema3D)')
     parser.add_argument('--db_test_name', default='testred', help='Test set (Sema3D)')
-    parser.add_argument('--ROOT_PATH', default='/home/jules/Project/superpoint_graph/test')
-    parser.add_argument('--odir', default='/home/jules/Project/superpoint_graph/results_emb/test', help='folder for saving the trained model')
+    parser.add_argument('--ROOT_PATH', default='/home/jules/Project/superpoint_graph/trunkbranchleaf')
+    parser.add_argument('--odir', default='/home/jules/Project/superpoint_graph/results_emb/trunkbranchleaf', help='folder for saving the trained model')
     parser.add_argument('--spg_out', default=1, type=int, help='wether to compute the SPG for linking with the SPG semantic segmentation method')
     
     # Learning process arguments
@@ -111,7 +111,7 @@ def parse_args():
 
     #Graph-Clustering
     parser.add_argument('--ver_value', default='ptn', help='what value to use for vertices (ptn): uses PointNets, (geof) : uses geometric features, (xyz) uses position, (rgb) uses color')
-    parser.add_argument('--max_ver_train', default=1e4, type=int, help='Size of the subgraph taken in each point cloud for the training')
+    parser.add_argument('--max_ver_train', default=10000, type=int, help='Size of the subgraph taken in each point cloud for the training')
     parser.add_argument('--k_nn_adj', default=5, type=int, help='number of neighbors for the adjacency graph')
     parser.add_argument('--k_nn_local', default=20, type=int, help='number of neighbors to describe the local geometry')
     parser.add_argument('--reg_strength', default=0.1, type = float, help='Regularization strength or the generalized minimum partition problem.')
@@ -332,7 +332,7 @@ def embed(args):
                     clouds, clouds_global, nei = clouds_data
                     clouds_data = (clouds.to('cuda',non_blocking=True),clouds_global.to('cuda',non_blocking=True),nei) 
                 
-                if (args.dataset in ['sema3d', 'woodleaf', 'trunkbranchleaf']:
+                if (args.dataset in ['sema3d', 'woodleaf', 'trunkbranchleaf']):
                     embeddings = ptnCloudEmbedder.run_batch_cpu(model, *clouds_data, xyz)
                 else:
                     embeddings = ptnCloudEmbedder.run_batch(model, *clouds_data, xyz)
@@ -341,16 +341,16 @@ def embed(args):
                     
                 pred_components, pred_in_component = compute_partition(args, embeddings, edg_source, edg_target, diff, xyz)
                     
-                if len(is_transition)>1:
-                    pred_transition = pred_in_component[edg_source]!=pred_in_component[edg_target]
-                    is_transition = is_transition.cpu().numpy()
-                        
-                    n_clusters_meter.add(len(pred_components))
-    
-                    per_pred = perfect_prediction(pred_components, labels)                    
-                    confusion_matrix_classes.count_predicted_batch(labels[:,1:], per_pred)
-                    confusion_matrix_BR.count_predicted_batch_hard(is_transition, relax_edge_binary(pred_transition, edg_source, edg_target, xyz.shape[0], args.BR_tolerance).astype('uint8'))
-                    confusion_matrix_BP.count_predicted_batch_hard(relax_edge_binary(is_transition, edg_source, edg_target, xyz.shape[0], args.BR_tolerance),pred_transition.astype('uint8'))
+                # if len(is_transition)>1:
+                #     pred_transition = pred_in_component[edg_source]!=pred_in_component[edg_target]
+                #     is_transition = is_transition.cpu().numpy()
+                #
+                #     n_clusters_meter.add(len(pred_components))
+                #
+                #     per_pred = perfect_prediction(pred_components, labels)
+                #     confusion_matrix_classes.count_predicted_batch(labels[:,1:], per_pred)
+                #     confusion_matrix_BR.count_predicted_batch_hard(is_transition, relax_edge_binary(pred_transition, edg_source, edg_target, xyz.shape[0], args.BR_tolerance).astype('uint8'))
+                #     confusion_matrix_BP.count_predicted_batch_hard(relax_edge_binary(is_transition, edg_source, edg_target, xyz.shape[0], args.BR_tolerance),pred_transition.astype('uint8'))
               
                 if args.spg_out:
                     graph_sp = compute_sp_graph(xyz, 100, pred_in_component, pred_components, labels, dbinfo["classes"])
@@ -362,26 +362,28 @@ def embed(args):
                     except OSError:
                         pass
                     write_spg(spg_file, graph_sp, pred_components, pred_in_component)
+                    # export oversegmentation to ply file
+                    partition2ply(spg_file[:-3] + "_partition.ply", xyz, pred_components)
 
-                    #Debugging purpose - write the embedding file and an exemple of scalar files
-                    if bidx % 0 == 0:
-                        embedding2ply(os.path.join(folder_hierarchy.emb_folder , fname[0][:-3] + '_emb.ply'), xyz, embeddings.detach().cpu().numpy())
-                        scalar2ply(os.path.join(folder_hierarchy.scalars , fname[0][:-3] + '_elevation.ply') , xyz, clouds_data[1][:,1].cpu())
-                        edg_class = is_transition + 2*pred_transition
-                        edge_class2ply2(os.path.join(folder_hierarchy.emb_folder , fname[0][:-3] + '_transition.ply'), edg_class, xyz, edg_source, edg_target)
-            if len(is_transition)>1:
-                res_name = folder_hierarchy.outputdir+'/res.h5'
-                res_file = h5py.File(res_name, 'w')
-                res_file.create_dataset('confusion_matrix_classes'
-                                 , data=confusion_matrix_classes.confusion_matrix, dtype='uint64')
-                res_file.create_dataset('confusion_matrix_BR'
-                                 , data=confusion_matrix_BR.confusion_matrix, dtype='uint64')
-                res_file.create_dataset('confusion_matrix_BP'
-                                 , data=confusion_matrix_BP.confusion_matrix, dtype='uint64')
-                res_file.create_dataset('n_clusters'
-                                 , data=n_clusters_meter.value()[0], dtype='uint64')
-                res_file.close()
-                
+            #         #Debugging purpose - write the embedding file and an exemple of scalar files
+            #         if bidx % 0 == 0:
+            #             embedding2ply(os.path.join(folder_hierarchy.emb_folder , fname[0][:-3] + '_emb.ply'), xyz, embeddings.detach().cpu().numpy())
+            #             scalar2ply(os.path.join(folder_hierarchy.scalars , fname[0][:-3] + '_elevation.ply') , xyz, clouds_data[1][:,1].cpu())
+            #             edg_class = is_transition + 2*pred_transition
+            #             edge_class2ply2(os.path.join(folder_hierarchy.emb_folder , fname[0][:-3] + '_transition.ply'), edg_class, xyz, edg_source, edg_target)
+            # if len(is_transition)>1:
+            #     res_name = folder_hierarchy.outputdir+'/res.h5'
+            #     res_file = h5py.File(res_name, 'w')
+            #     res_file.create_dataset('confusion_matrix_classes'
+            #                      , data=confusion_matrix_classes.confusion_matrix, dtype='uint64')
+            #     res_file.create_dataset('confusion_matrix_BR'
+            #                      , data=confusion_matrix_BR.confusion_matrix, dtype='uint64')
+            #     res_file.create_dataset('confusion_matrix_BP'
+            #                      , data=confusion_matrix_BP.confusion_matrix, dtype='uint64')
+            #     res_file.create_dataset('n_clusters'
+            #                      , data=n_clusters_meter.value()[0], dtype='uint64')
+            #     res_file.close()
+            #
         return
     
     # Training loop

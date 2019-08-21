@@ -21,9 +21,12 @@ class FolderHierachy:
         elif dataset_name=='vkitti':
             self._outputdir = os.path.join(outputdir, 'cv' + str(cv_fold))
             self._folders  = ["01/", "02/", "03/", "04/", "05/", "06/"]
-        elif dataset_name=='test':
+        elif dataset_name=='woodleaf':
             self._outputdir = os.path.join(outputdir, 'best')
             self._folders = ["train/", "test/"]
+        elif dataset_name == 'trunkbranchleaf':
+            self._outputdir = os.path.join(outputdir, str(cv_fold))
+            self._folders = ["01/", "02/", "03/", "04/", "05/", "06/"]
         
         if not os.path.exists(self._outputdir):
             os.makedirs(self._outputdir)

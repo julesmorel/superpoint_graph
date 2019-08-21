@@ -351,7 +351,7 @@ def create_woodleaf_datasets(args, test_seed_offset=0):
             for fname in sorted(os.listdir(path)):
                 if fname.endswith(".h5"):
                     trainlist.append(path + fname)
-    path = '{}/features_supervision/0{:d}/'.format(args.ROOT_PATH)
+    path = '{}/features_supervision/0{:d}/'.format(args.ROOT_PATH, args.cvfold)
     for fname in sorted(os.listdir(path)):
         if fname.endswith(".h5"):
             testlist.append(path + fname)
@@ -372,7 +372,7 @@ def create_trunkbranchleaf_datasets(args, test_seed_offset=0):
             for fname in sorted(os.listdir(path)):
                 if fname.endswith(".h5"):
                     trainlist.append(path + fname)
-    path = '{}/features_supervision/0{:d}/'.format(args.ROOT_PATH)
+    path = '{}/features_supervision/0{:d}/'.format(args.ROOT_PATH, args.cvfold)
     for fname in sorted(os.listdir(path)):
         if fname.endswith(".h5"):
             testlist.append(path + fname)
@@ -440,8 +440,14 @@ def graph_loader(entry, train, args, db_path, test_seed_offset=0, full_cpu = Fal
     if train and (0<args.max_ver_train<n_ver):
         
         subsample = True
-            
-        selected_edg, selected_ver = libply_c.random_subgraph(n_ver, edg_source.astype('uint32'), edg_target.astype('uint32'), int(args.max_ver_train))
+        loop = True
+        while  loop:
+            selected_edg, selected_ver = libply_c.random_subgraph(n_ver, edg_source.astype('uint32'), edg_target.astype('uint32'), int(args.max_ver_train))
+            if selected_ver.sum()==args.max_ver_train+1:
+                loop = False
+            else:
+                print('Bad news')
+
         selected_edg = selected_edg.astype('?')
         selected_ver = selected_ver.astype('?')
             
@@ -526,7 +532,9 @@ def graph_collate(batch):
     #if len(is_transition[0])>1:
     is_transition = torch.cat(is_transition, 0)
     for l in labels:
-        print(len(l))
+        if len(l)==10000:
+            print(len(l))
+
     print('\n')
     labels = np.vstack(labels)
     
