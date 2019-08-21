@@ -152,6 +152,9 @@ def dataset(args):
     elif args.dataset == 'woodleaf':
         dbinfo = get_test_info(args)
         create_dataset = create_woodleaf_datasets
+    elif args.dataset == 'trunkbranchleaf':
+        dbinfo = get_test_info(args)
+        create_dataset = create_trunkbranchleaf_datasets
     else:
         raise NotImplementedError('Unknown dataset ' + args.dataset)
     return dbinfo, create_dataset
@@ -329,7 +332,7 @@ def embed(args):
                     clouds, clouds_global, nei = clouds_data
                     clouds_data = (clouds.to('cuda',non_blocking=True),clouds_global.to('cuda',non_blocking=True),nei) 
                 
-                if (args.dataset=='sema3d') or (args.dataset=='woodleaf'):
+                if (args.dataset in ['sema3d', 'woodleaf', 'trunkbranchleaf']:
                     embeddings = ptnCloudEmbedder.run_batch_cpu(model, *clouds_data, xyz)
                 else:
                     embeddings = ptnCloudEmbedder.run_batch(model, *clouds_data, xyz)

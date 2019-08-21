@@ -33,8 +33,8 @@ from partition.provider import *
 def main():
     parser = argparse.ArgumentParser(description='Large-scale Point Cloud Semantic Segmentation with Superpoint Graphs')
     
-    parser.add_argument('--ROOT_PATH', default='/home/jules/Project/superpoint_graph/woodleaf')
-    parser.add_argument('--dataset', default='woodleaf')
+    parser.add_argument('--ROOT_PATH', default='/home/jules/Project/superpoint_graph/trunkbranchleaf')
+    parser.add_argument('--dataset', default='trunkbranchleaf')
     #parameters
     parser.add_argument('--compute_geof', default=1, type=int, help='compute hand-crafted features of the local geometry')
     parser.add_argument('--k_nn_local', default=20, type=int, help='number of neighbors to describe the local geometry')
@@ -70,6 +70,9 @@ def main():
     elif args.dataset == 'woodleaf':
         folders = ["01/", "02/", "03/", "04/", "05/"]
         n_labels = 2 #number of classes
+    elif args.dataset == 'trunkbranchleaf':
+        folders = ["01/", "02/", "03/", "04/", "05/", "06/", "07/", "08/", "09/", "10/"]
+        n_labels = 3 #number of classes
     else:
         raise ValueError('%s is an unknown data set' % args.dataset)
 
@@ -93,8 +96,9 @@ def main():
             files = glob.glob(data_folder + "*.txt")
         elif args.dataset == 'vkitti':
             files = glob.glob(data_folder + "*.npy")
-        elif args.dataset == 'test':
+        elif args.dataset in ['woodleaf', 'trunkbranchleaf']:
             files = glob.glob(data_folder + "*.xyz")
+
             
         if (len(files) == 0):
             continue
@@ -114,9 +118,10 @@ def main():
             elif args.dataset=='vkitti':
                 data_file   = data_folder + file_name + ".npy"
                 str_file    = str_folder  + file_name + '.h5'
-            elif args.dataset=='test':
+            elif args.dataset in ['woodleaf', 'trunkbranchleaf']:
                 data_file   = data_folder + file_name + ".xyz"
                 str_file    = str_folder  + file_name + '.h5'
+
             i_file = i_file + 1
             print(str(i_file) + " / " + str(n_files) + "---> "+file_name)
             if os.path.isfile(str_file):
@@ -149,23 +154,16 @@ def main():
                     if pruning:
                         xyz, rgb, labels, o = libply_c.prune(xyz.astype('f4'), args.voxel_width, rgb.astype('uint8'), labels.astype('uint8'), np.zeros(1, dtype='uint8'), n_labels, 0)
                     #---compute nn graph-------
-                elif args.dataset == 'woodleaf':
+                elif args.dataset in ['woodleaf', 'trunkbranchleaf']:
                     xyz, labels = read_ascii(data_file)
                     rgb = []
+
                 n_ver = xyz.shape[0]    
                 print("computing NN structure")
                 graph_nn, local_neighbors = compute_graph_nn_2(xyz, args.k_nn_adj, args.k_nn_local, voronoi = args.use_voronoi)
                 
                 if args.dataset=='s3dis':
                     is_transition = objects[graph_nn["source"]]!=objects[graph_nn["target"]]
-                elif args.dataset=='woodleaf':
-                    hard_labels = labels
-                    is_transition = hard_labels[graph_nn["source"]] != hard_labels[graph_nn["target"]]
-
-                    dump, objects = libply_c.connected_comp(n_ver,
-                                                            graph_nn["source"].astype('uint32'),
-                                                            graph_nn["target"].astype('uint32'),
-                                                            (is_transition == 0).astype('uint8'), 0)
                 elif args.dataset=='sema3d' and has_labels:
                     #sema has no object, we make them ourselves with label inpainting
                     hard_labels = np.argmax(labels[:,1:], 1)+1
@@ -190,7 +188,15 @@ def main():
                     dump, objects = libply_c.connected_comp(n_ver \
                        , graph_nn["source"].astype('uint32'), graph_nn["target"].astype('uint32') \
                        , (is_transition==0).astype('uint8'), 0)
-                    
+                elif args.dataset in ['woodleaf', 'trunkbranchleaf']:
+                    hard_labels = labels
+                    is_transition = hard_labels[graph_nn["source"]] != hard_labels[graph_nn["target"]]
+
+                    dump, objects = libply_c.connected_comp(n_ver,
+                                                            graph_nn["source"].astype('uint32'),
+                                                            graph_nn["target"].astype('uint32'),
+                                                            (is_transition == 0).astype('uint8'), 0)
+
                 if (args.compute_geof):
                     geof = libply_c.compute_geof(xyz, local_neighbors, args.k_nn_local).astype('float32')
                     geof[:,3] = 2. * geof[:,3]
@@ -354,7 +360,28 @@ def create_woodleaf_datasets(args, test_seed_offset=0):
                                    functools.partial(graph_loader, train=True, args=args, db_path=args.ROOT_PATH)), \
            tnt.dataset.ListDataset(testlist,
                                    functools.partial(graph_loader, train=False, args=args, db_path=args.ROOT_PATH))
-           
+
+
+def create_trunkbranchleaf_datasets(args, test_seed_offset=0):
+    """ Gets training and test datasets. """
+    # Load formatted clouds
+    testlist, trainlist = [], []
+    for n in range(1, 5):
+        if n != args.cvfold:
+            path = '{}/features_supervision/0{:d}/'.format(args.ROOT_PATH, n)
+            for fname in sorted(os.listdir(path)):
+                if fname.endswith(".h5"):
+                    trainlist.append(path + fname)
+    path = '{}/features_supervision/0{:d}/'.format(args.ROOT_PATH)
+    for fname in sorted(os.listdir(path)):
+        if fname.endswith(".h5"):
+            testlist.append(path + fname)
+
+    return tnt.dataset.ListDataset(trainlist,
+                                   functools.partial(graph_loader, train=True, args=args, db_path=args.ROOT_PATH)), \
+           tnt.dataset.ListDataset(testlist,
+                                   functools.partial(graph_loader, train=False, args=args, db_path=args.ROOT_PATH))
+
 def create_sema3d_datasets(args, test_seed_offset=0):
     """ Gets training and test datasets. """
     
