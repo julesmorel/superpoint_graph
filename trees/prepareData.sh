@@ -22,8 +22,7 @@ do
 	branchobj=${branchobj_sub}
 
 	leafobj_sub="l${n}_sub.obj"
-	/home/jules/Ext_Projects/trimesh2/bin.Linux64/mesh_filter $leafobj -fly ${leafobj}_1
-	/home/jules/Ext_Projects/trimesh2/bin.Linux64/mesh_filter ${leafobj}_1 -fly ${leafobj_sub}
+	/home/jules/Ext_Projects/trimesh2/bin.Linux64/mesh_filter $leafobj -fly ${leafobj_sub}
 	leafobj=${leafobj_sub}
 
 	treeNoExt="${treeobj%.*}"
@@ -120,6 +119,12 @@ do
 
 		done
 	done
+
+	rm ${treeobj}_1
+	rm ${treeobj_sub}
+	rm ${branchobj}_1
+	rm ${branchobj_sub}
+	rm ${leafobj_sub}
 
 	rm $fullPbrt
 	rm $treePbrt
