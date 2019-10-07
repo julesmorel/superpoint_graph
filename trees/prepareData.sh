@@ -10,6 +10,7 @@ trimesh2=/home/jules/Ext_Projects/trimesh2/bin.Linux64
 pbrtv2l=/home/jules/Software/pbrt-v2l
 applyLabelLeafBranchWood=/home/jules/Project/applyLabelLeafBranchWood/applyLabelLeafBranchWood
 
+
 for n in $( seq 1 $numberOfTrees)
 do
 	treeobj="t${n}.obj"
@@ -34,18 +35,18 @@ do
 	branchNoExt="${branchobj%.*}"
 	leafNoExt="${leafobj%.*}"
 
-	$obj2pbrt 1.0 $treeobj
+	$pbrtv2l/obj2pbrt 1.0 $treeobj
 	treePbrt="$treeNoExt.pbrt"
-	$obj2pbrt 1.0 $branchobj
+	$pbrtv2l/obj2pbrt 1.0 $branchobj
 	branchPbrt="$branchNoExt.pbrt"
-	$obj2pbrt 1.0 $leafobj
+	$pbrtv2l/obj2pbrt 1.0 $leafobj
 	leafPbrt="$leafNoExt.pbrt"
 
 	#merging both mesh
 	fullobj="full${n}.obj"
 	fullNoExt="${fullobj%.*}"
 	${trimesh2}/mesh_cat $treeobj $branchobj $leafobj -o $fullobj
-	$obj2pbrt 1.0 $fullobj
+	$pbrtv2l/obj2pbrt 1.0 $fullobj
 	fullPbrt="$fullNoExt.pbrt"
 
 	#Radius of the circle (m)
