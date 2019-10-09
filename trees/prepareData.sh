@@ -3,12 +3,15 @@ nbDiv=4
 #Height of the scanner (cm)
 hScan=1.5
 #Number of model to process
-numberOfTrees=2
+numberOfTrees=10
 
 # Binary paths
-trimesh2=/home/jules/Ext_Projects/trimesh2/bin.Linux64
-pbrtv2l=/home/jules/Software/pbrt-v2l
-applyLabelLeafBranchWood=/home/jules/Project/applyLabelLeafBranchWood/applyLabelLeafBranchWood
+#trimesh2=/home/jules/Ext_Projects/trimesh2/bin.Linux64
+#pbrtv2l=/home/jules/Software/pbrt-v2l
+#applyLabelLeafBranchWood=/home/jules/Project/applyLabelLeafBranchWood/applyLabelLeafBranchWood
+trimesh2=/home/boissieu/git/superpoint_graph/softwares/trimesh2/bin.Linux64
+pbrtv2l=/home/boissieu/git/superpoint_graph/softwares/pbrt-v2l
+applyLabelLeafBranchWood=/home/boissieu/git/superpoint_graph/softwares/applyLabelLeafBranchWood/applyLabelLeafBranchWood
 
 
 for n in $( seq 1 $numberOfTrees)
@@ -117,6 +120,8 @@ do
 			#Produce the point cloud
 			$pbrtv2l/src/bin/pbrt --quiet scene.pbrt
 			rm scene.pbrt
+
+            
 
 			$applyLabelLeafBranchWood $treeOut $branchOut $leafOut $fullOut
 
