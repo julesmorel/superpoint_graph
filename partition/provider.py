@@ -25,6 +25,24 @@ from partition.ply_c import libply_c
 import colorsys
 from sklearn.decomposition import PCA
 #------------------------------------------------------------------------------
+def object2ply(filename, xyz, objects):
+    """write a ply with random colors for each components"""
+    random_color = lambda: random.randint(0, 255)
+    color = np.zeros(xyz.shape)
+    uo = np.unique(objects)
+    for o in uo:
+        color[objects==o, :] = [random_color(), random_color()
+        , random_color()]
+    prop = [('x', 'f4'), ('y', 'f4'), ('z', 'f4'), ('red', 'u1')
+    , ('green', 'u1'), ('blue', 'u1')]
+    vertex_all = np.empty(len(xyz), dtype=prop)
+    for i in range(0, 3):
+        vertex_all[prop[i][0]] = xyz[:, i]
+    for i in range(0, 3):
+        vertex_all[prop[i+3][0]] = color[:, i]
+    ply = PlyData([PlyElement.describe(vertex_all, 'vertex')], text=True)
+    ply.write(filename)
+#------------------------------------------------------------------------------
 def partition2ply(filename, xyz, components):
     """write a ply with random colors for each components"""
     random_color = lambda: random.randint(0, 255)
@@ -152,12 +170,19 @@ def get_color_from_label(object_label, dataset):
             7: [   0, 255, 255], #'artifact'   ->  cyan
             8: [ 255,   8, 127], #'cars'  ->  pink
             }.get(object_label, -1)
+    elif (dataset == 'trunkbranchleaf'): #Custom set
+        object_label =  {
+            0: [0   ,   0,   0], #unlabelled .->. black
+            1: [ 0, 0, 255], #'trunk' -> blue
+            2: [ 0, 255, 0], #'branch' -> green
+            3: [255, 0, 0],  # 'leaf' -> red
+            }.get(object_label, -1)
     elif (dataset == 'custom_dataset'): #Custom set
         object_label =  {
             0: [0   ,   0,   0], #unlabelled .->. black
-            1: [ 255, 0, 0], #'classe A' -> red
-            2: [ 0, 255, 0], #'classeB' -> green
-            }.get(object_label, -1)
+            1: [255, 0, 0],  # 'classe A' -> red
+            2: [0, 255, 0],  # 'classeB' -> green
+        }.get(object_label, -1)
     else: 
         raise ValueError('Unknown dataset: %s' % (dataset))
     if object_label == -1:
@@ -390,12 +415,31 @@ def iter_loadtxt(filename, delimiter=' ', dtype=float):
     data = data.reshape((-1, iter_loadtxt.rowlength))
     return data
 
-def read_ascii(filename):
+def read_xyz(filename):
+    # reads xyz ascii files with class as 4th column
     path = os.path.dirname(os.path.realpath(__file__))
     txt = iter_loadtxt(os.path.join(path, filename))
     pts = txt[:, [0, 1, 2]]
-    lab = np. array(txt[:, 3], dtype='int')
+    lab = np. array(txt[:, 3], dtype='int')+1 # necessary to have a class #0 for unlabelled. See graphs.compute_sp_graph line 151
     return  pts.astype('float32'), lab
+def pcfeatures2ascii(filename, xyz, rgb, labels, objects, elevation, geof, pred=[]):
+    data = pd.DataFrame(xyz, columns=['x', 'y', 'z'])
+    if isinstance(rgb, np.ndarray) and (rgb.shape[0] > 0):
+        data = pd.concat([data, pd.DataFrame(rgb, columns=['R', 'G', 'B'])], axis=1)
+    if isinstance(labels, np.ndarray) and (len(labels) > 0):
+        data['labels']=labels
+    if isinstance(objects, np.ndarray) and (len(objects) > 0):
+        data['objects'] = objects
+    if isinstance(elevation, np.ndarray) and (len(elevation) > 0):
+        data['elevation'] = elevation
+    if isinstance(geof, np.ndarray) and (geof.shape[0] > 0):
+        data = pd.concat([data, pd.DataFrame(geof, columns=['linearity', 'planarity', 'scattering', 'verticality'])], axis=1)
+    if isinstance(pred, np.ndarray) and (len(pred) > 0):
+        data['pred'] = pred
+
+    data.to_csv(filename, sep='\t', index=False)
+
+
 #------------------------------------------------------------------------------
 def read_las(filename):
     """convert from a las file with no rgb"""
@@ -535,7 +579,9 @@ def read_features(file_name):
     #---fill the arrays---
     geof = data_file["geof"][:]
     xyz = data_file["xyz"][:]
-    #rgb = data_file["rgb"][:]
+    rgb = []
+    if 'rgb' in data_file.keys():
+      rgb = data_file["rgb"][:]
     source = data_file["source"][:]
     target = data_file["target"][:]
 
@@ -543,7 +589,7 @@ def read_features(file_name):
     graph_nn = dict([("is_nn", True)])
     graph_nn["source"] = source
     graph_nn["target"] = target
-    return geof, xyz, graph_nn, labels
+    return geof, xyz, rgb, graph_nn, labels
 #------------------------------------------------------------------------------
 def write_spg(file_name, graph_sp, components, in_component):
     """save the partition and spg information"""
