@@ -143,7 +143,7 @@ for folder in folders:
                     xyz, rgb = read_semantic3d_format(data_file, 0, '', args.voxel_width, args.ver_batch)
                     labels = []
             elif args.dataset=='test':
-                xyz, labels = read_ascii(data_file)
+                xyz, labels = read_xyz(data_file)
                 rgb = []
             elif args.dataset=='custom_dataset':
                 #implement in provider.py your own read_custom_format outputing xyz, rgb, labels

@@ -62,8 +62,8 @@ def parse_args():
     parser.add_argument('--resume', default='', help='Loads a previously saved model.')
     parser.add_argument('--db_train_name', default='trainval', help='Training set (Sema3D)')
     parser.add_argument('--db_test_name', default='testred', help='Test set (Sema3D)')
-    parser.add_argument('--ROOT_PATH', default='/home/jules/Project/superpoint_graph/trunkbranchleaf')
-    parser.add_argument('--odir', default='/home/jules/Project/superpoint_graph/results_emb/trunkbranchleaf', help='folder for saving the trained model')
+    parser.add_argument('--ROOT_PATH', default='/home/boissieu/git/superpoint_graph/data/trunkBranchLeaf_sub')
+    parser.add_argument('--odir', default='/home/boissieu/superpoint_graph/results_partition/trunkbranchleaf/best', help='folder for saving the trained model')
     parser.add_argument('--spg_out', default=1, type=int, help='wether to compute the SPG for linking with the SPG semantic segmentation method')
     
     # Learning process arguments
@@ -150,10 +150,10 @@ def dataset(args):
         dbinfo = get_vkitti_info(args)
         create_dataset = create_vkitti_datasets
     elif args.dataset == 'woodleaf':
-        dbinfo = get_test_info(args)
+        dbinfo = get_woodleaf_info(args)
         create_dataset = create_woodleaf_datasets
     elif args.dataset == 'trunkbranchleaf':
-        dbinfo = get_test_info(args)
+        dbinfo = get_trunkbranchleaf_info(args)
         create_dataset = create_trunkbranchleaf_datasets
     else:
         raise NotImplementedError('Unknown dataset ' + args.dataset)
@@ -332,7 +332,7 @@ def embed(args):
                     clouds, clouds_global, nei = clouds_data
                     clouds_data = (clouds.to('cuda',non_blocking=True),clouds_global.to('cuda',non_blocking=True),nei) 
                 
-                if (args.dataset in ['sema3d', 'woodleaf', 'trunkbranchleaf']):
+                if (args.dataset in ['sema3d', 'woodleaf']): #, 'trunkbranchleaf'
                     embeddings = ptnCloudEmbedder.run_batch_cpu(model, *clouds_data, xyz)
                 else:
                     embeddings = ptnCloudEmbedder.run_batch(model, *clouds_data, xyz)
@@ -341,18 +341,20 @@ def embed(args):
                     
                 pred_components, pred_in_component = compute_partition(args, embeddings, edg_source, edg_target, diff, xyz)
                     
-                # if len(is_transition)>1:
-                #     pred_transition = pred_in_component[edg_source]!=pred_in_component[edg_target]
-                #     is_transition = is_transition.cpu().numpy()
-                #
-                #     n_clusters_meter.add(len(pred_components))
-                #
-                #     per_pred = perfect_prediction(pred_components, labels)
-                #     confusion_matrix_classes.count_predicted_batch(labels[:,1:], per_pred)
-                #     confusion_matrix_BR.count_predicted_batch_hard(is_transition, relax_edge_binary(pred_transition, edg_source, edg_target, xyz.shape[0], args.BR_tolerance).astype('uint8'))
-                #     confusion_matrix_BP.count_predicted_batch_hard(relax_edge_binary(is_transition, edg_source, edg_target, xyz.shape[0], args.BR_tolerance),pred_transition.astype('uint8'))
+                if len(is_transition)>1:
+                    pred_transition = pred_in_component[edg_source]!=pred_in_component[edg_target]
+                    is_transition = is_transition.cpu().numpy()
+
+                    n_clusters_meter.add(len(pred_components))
+
+                    # There seem to be a bug: labels is of shape 1x842061 (expeced to have more than one line) while pred_components is a list of  length [96, 22, ...] sum length being 842061.
+                    # per_pred = perfect_prediction(pred_components, labels) # commented by Florian: does not work, only 1 component instead of 8 expected
+                    # confusion_matrix_classes.count_predicted_batch(labels[:,1:], per_pred) # commented in consequence of previous line
+                    confusion_matrix_BR.count_predicted_batch_hard(is_transition, relax_edge_binary(pred_transition, edg_source, edg_target, xyz.shape[0], args.BR_tolerance).astype('uint8'))
+                    confusion_matrix_BP.count_predicted_batch_hard(relax_edge_binary(is_transition, edg_source, edg_target, xyz.shape[0], args.BR_tolerance),pred_transition.astype('uint8'))
               
                 if args.spg_out:
+                    labels = labels.squeeze() # added for one dimension label, otherwise leads to an error in compute_sp_graph
                     graph_sp = compute_sp_graph(xyz, 100, pred_in_component, pred_components, labels, dbinfo["classes"])
                     spg_file = os.path.join(folder_hierarchy.spg_folder, fname[0])
                     if not os.path.exists(os.path.dirname(spg_file)):
@@ -371,23 +373,24 @@ def embed(args):
             #             scalar2ply(os.path.join(folder_hierarchy.scalars , fname[0][:-3] + '_elevation.ply') , xyz, clouds_data[1][:,1].cpu())
             #             edg_class = is_transition + 2*pred_transition
             #             edge_class2ply2(os.path.join(folder_hierarchy.emb_folder , fname[0][:-3] + '_transition.ply'), edg_class, xyz, edg_source, edg_target)
-            # if len(is_transition)>1:
-            #     res_name = folder_hierarchy.outputdir+'/res.h5'
-            #     res_file = h5py.File(res_name, 'w')
-            #     res_file.create_dataset('confusion_matrix_classes'
-            #                      , data=confusion_matrix_classes.confusion_matrix, dtype='uint64')
-            #     res_file.create_dataset('confusion_matrix_BR'
-            #                      , data=confusion_matrix_BR.confusion_matrix, dtype='uint64')
-            #     res_file.create_dataset('confusion_matrix_BP'
-            #                      , data=confusion_matrix_BP.confusion_matrix, dtype='uint64')
-            #     res_file.create_dataset('n_clusters'
-            #                      , data=n_clusters_meter.value()[0], dtype='uint64')
-            #     res_file.close()
+            if len(is_transition)>1:
+                res_name = folder_hierarchy.outputdir+'/res.h5'
+                res_file = h5py.File(res_name, 'w')
+                res_file.create_dataset('confusion_matrix_classes'
+                                 , data=confusion_matrix_classes.confusion_matrix, dtype='uint64')
+                res_file.create_dataset('confusion_matrix_BR'
+                                 , data=confusion_matrix_BR.confusion_matrix, dtype='uint64')
+                res_file.create_dataset('confusion_matrix_BP'
+                                 , data=confusion_matrix_BP.confusion_matrix, dtype='uint64')
+                res_file.create_dataset('n_clusters'
+                                 , data=n_clusters_meter.value()[0], dtype='uint64')
+                res_file.close()
             #
         return
     
     # Training loop
     #
+
     for epoch in range(args.start_epoch, args.epochs):
         if not args.learned_embeddings:
             break
@@ -408,7 +411,7 @@ def embed(args):
         with open(os.path.join(folder_hierarchy.outputdir, 'trainlog.json'), 'w') as outfile:
             json.dump(stats, outfile, indent=4)
 
-        if epoch % args.save_nth_epoch == 0 or epoch==args.epochs-1:            
+        if epoch % args.save_nth_epoch == 0 or epoch==args.epochs-1:
             model_name = 'model.pth.tar'
             print("Saving model to " + model_name)
             model_name = 'model.pth.tar'

@@ -69,6 +69,7 @@ def spg_reader(args, fname, incl_dir_in_name=False):
 
     if f['sp_labels'].size > 0:
         node_gt_size = f['sp_labels'][:].astype(np.int64) # column 0: no of unlabeled points, column 1+: no of labeled points per class
+        # node_gt_size = np.hstack([np.zeros((node_gt_size.shape[0], 1)), node_gt_size])
         node_gt = np.argmax(node_gt_size[:,1:], 1)[:,None]
         node_gt[node_gt_size[:,1:].sum(1)==0,:] = -100    # superpoints without labels are to be ignored in loss computation
     else:
@@ -101,6 +102,47 @@ def spg_reader(args, fname, incl_dir_in_name=False):
     if incl_dir_in_name: name = os.path.basename(os.path.dirname(fname)) + '/' + name
 
     return node_gt, node_gt_size, edges, edge_feats, name
+
+# # For debug when class 0 was not inserted at graph construction
+# def spg_reader_debug(args, fname, incl_dir_in_name=False):
+#     """ Loads a supergraph from H5 file. """
+#     f = h5py.File(fname,'r')
+#
+#     if f['sp_labels'].size > 0:
+#         node_gt_size = f['sp_labels'][:].astype(np.int64) # column 0: no of unlabeled points, column 1+: no of labeled points per class
+#         node_gt_size = np.hstack([np.zeros((node_gt_size.shape[0], 1)), node_gt_size])
+#         node_gt = np.argmax(node_gt_size[:,1:], 1)[:,None]
+#         node_gt[node_gt_size[:,1:].sum(1)==0,:] = -100    # superpoints without labels are to be ignored in loss computation
+#     else:
+#         N = f['sp_point_count'].shape[0]
+#         node_gt_size = np.concatenate([f['sp_point_count'][:].astype(np.int64), np.zeros((N,8), dtype=np.int64)], 1)
+#         node_gt = np.zeros((N,1), dtype=np.int64)
+#
+#     node_att = {}
+#     node_att['xyz'] = f['sp_centroids'][:]
+#     node_att['nlength'] = np.maximum(0, f['sp_length'][:])
+#     node_att['volume'] = np.maximum(0, f['sp_volume'][:] ** 2)
+#     node_att['surface'] = np.maximum(0, f['sp_surface'][:] ** 2)
+#     node_att['size'] = f['sp_point_count'][:]
+#
+#     edges = np.concatenate([ f['source'][:], f['target'][:] ], axis=1).astype(np.int64)
+#
+#     edge_att = {}
+#     edge_att['delta_avg'] = f['se_delta_mean'][:]
+#     edge_att['delta_std'] = f['se_delta_std'][:]
+#
+#     if args.spg_superedge_cutoff > 0:
+#         filtered = np.linalg.norm(edge_att['delta_avg'],axis=1) < args.spg_superedge_cutoff
+#         edges = edges[filtered,:]
+#         edge_att['delta_avg'] = edge_att['delta_avg'][filtered,:]
+#         edge_att['delta_std'] = edge_att['delta_std'][filtered,:]
+#
+#     edge_feats = spg_edge_features(edges, node_att, edge_att, args)
+#
+#     name = os.path.basename(fname)[:-len('.h5')]
+#     if incl_dir_in_name: name = os.path.basename(os.path.dirname(fname)) + '/' + name
+#
+#     return node_gt, node_gt_size, edges, edge_feats, name
 
 
 def spg_to_igraph(node_gt, node_gt_size, edges, edge_feats, fname):

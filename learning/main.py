@@ -45,7 +45,7 @@ def main():
     parser.add_argument('--lr_decay', default=0.7, type=float, help='Multiplicative factor used on learning rate at `lr_steps`')
     parser.add_argument('--lr_steps', default='[]', help='List of epochs where the learning rate is decreased by `lr_decay`')
     parser.add_argument('--momentum', default=0.9, type=float, help='Momentum')
-    parser.add_argument('--epochs', default=10, type=int, help='Number of epochs to train. If <=0, only testing will be done.')
+    parser.add_argument('--epochs', default=50, type=int, help='Number of epochs to train. If <=0, only testing will be done.')
     parser.add_argument('--batch_size', default=2, type=int, help='Batch size')
     parser.add_argument('--optim', default='adam', help='Optimizer: sgd|adam')
     parser.add_argument('--grad_clip', default=1, type=float, help='Element-wise clipping of gradient. If 0, does not clip')
@@ -54,13 +54,13 @@ def main():
     # Learning process arguments
     parser.add_argument('--cuda', default=1, type=int, help='Bool, use cuda')
     parser.add_argument('--nworkers', default=0, type=int, help='Num subprocesses to use for data loading. 0 means that the data will be loaded in the main process')
-    parser.add_argument('--test_nth_epoch', default=1, type=int, help='Test each n-th epoch during training')
-    parser.add_argument('--save_nth_epoch', default=1, type=int, help='Save model each n-th epoch during training')
+    parser.add_argument('--test_nth_epoch', default=10, type=int, help='Test each n-th epoch during training')
+    parser.add_argument('--save_nth_epoch', default=5, type=int, help='Save model each n-th epoch during training')
     parser.add_argument('--test_multisamp_n', default=10, type=int, help='Average logits obtained over runs with different seeds')
 
     # Dataset
-    parser.add_argument('--dataset', default='sema3d', help='Dataset name: sema3d|s3dis')
-    parser.add_argument('--cvfold', default=0, type=int, help='Fold left-out for testing in leave-one-out setting (S3DIS)')
+    parser.add_argument('--dataset', default='trunkbranchleaf', help='Dataset name: sema3d|s3dis')
+    parser.add_argument('--cvfold', default=1, type=int, help='Fold left-out for testing in leave-one-out setting (S3DIS)')
     parser.add_argument('--odir', default='results', help='Directory to store results')
     parser.add_argument('--resume', default='', help='Loads a previously saved model.')
     parser.add_argument('--db_train_name', default='train')
@@ -69,15 +69,15 @@ def main():
     parser.add_argument('--SEMA3D_PATH', default='datasets/semantic3d')
     parser.add_argument('--S3DIS_PATH', default='datasets/s3dis')
     parser.add_argument('--VKITTI_PATH', default='datasets/vkitti')
-    parser.add_argument('--CUSTOM_SET_PATH', default='datasets/custom_set')
+    parser.add_argument('--CUSTOM_SET_PATH', default='/home/boissieu/git/superpoint_graph/data/trunkBranchLeaf_sub')
 
     # Model
-    parser.add_argument('--model_config', default='gru_10,f_8', help='Defines the model as a sequence of layers, see graphnet.py for definitions of respective layers and acceptable arguments. In short: rectype_repeats_mv_layernorm_ingate_concat, with rectype the type of recurrent unit [gru/crf/lstm], repeats the number of message passing iterations, mv (default True) the use of matrix-vector (mv) instead vector-vector (vv) edge filters, layernorm (default True) the use of layernorms in the recurrent units, ingate (default True) the use of input gating, concat (default True) the use of state concatenation')
+    parser.add_argument('--model_config', default='gru_10,f_3', help='Defines the model as a sequence of layers, see graphnet.py for definitions of respective layers and acceptable arguments. In short: rectype_repeats_mv_layernorm_ingate_concat, with rectype the type of recurrent unit [gru/crf/lstm], repeats the number of message passing iterations, mv (default True) the use of matrix-vector (mv) instead vector-vector (vv) edge filters, layernorm (default True) the use of layernorms in the recurrent units, ingate (default True) the use of input gating, concat (default True) the use of state concatenation')
     parser.add_argument('--seed', default=1, type=int, help='Seed for random initialisation')
     parser.add_argument('--edge_attribs', default='delta_avg,delta_std,nlength/ld,surface/ld,volume/ld,size/ld,xyz/d', help='Edge attribute definition, see spg_edge_features() in spg.py for definitions.')
 
     # Point cloud processing
-    parser.add_argument('--pc_attribs', default='xyzrgbelpsvXYZ', help='Point attributes fed to PointNets, if empty then all possible. xyz = coordinates, rgb = color, e = elevation, lpsv = geometric feature, d = distance to center')
+    parser.add_argument('--pc_attribs', default='xyzelpsv', help='Point attributes fed to PointNets, if empty then all possible. xyz = coordinates, rgb = color, e = elevation, lpsv = geometric feature, d = distance to center') # xyzrgbelpsvXYZ
     parser.add_argument('--pc_augm_scale', default=0, type=float, help='Training augmentation: Uniformly random scaling in [1/scale, scale]')
     parser.add_argument('--pc_augm_rot', default=1, type=int, help='Training augmentation: Bool, random rotation around z-axis')
     parser.add_argument('--pc_augm_mirror_prob', default=0, type=float, help='Training augmentation: Probability of mirroring about x or y axes')
@@ -99,11 +99,11 @@ def main():
     parser.add_argument('--spg_superedge_cutoff', default=-1, type=float, help='Artificially constrained maximum length of superedge, -1=do not constrain')
 
     # Point net
-    parser.add_argument('--ptn_minpts', default=40, type=int, help='Minimum number of points in a superpoint for computing its embedding.')
+    parser.add_argument('--ptn_minpts', default=10, type=int, help='Minimum number of points in a superpoint for computing its embedding.')
     parser.add_argument('--ptn_npts', default=128, type=int, help='Number of input points for PointNet.')
     parser.add_argument('--ptn_widths', default='[[64,64,128,128,256], [256,64,32]]', help='PointNet widths')
     parser.add_argument('--ptn_widths_stn', default='[[64,64,128], [128,64]]', help='PointNet\'s Transformer widths')
-    parser.add_argument('--ptn_nfeat_stn', default=11, type=int, help='PointNet\'s Transformer number of input features')
+    parser.add_argument('--ptn_nfeat_stn', default=8, type=int, help='PointNet\'s Transformer number of input features') #
     parser.add_argument('--ptn_prelast_do', default=0, type=float)
     parser.add_argument('--ptn_mem_monger', default=1, type=int, help='Bool, save GPU memory by recomputing PointNets in back propagation.')
 
@@ -113,7 +113,13 @@ def main():
     args.fnet_widths = ast.literal_eval(args.fnet_widths)
     args.ptn_widths = ast.literal_eval(args.ptn_widths)
     args.ptn_widths_stn = ast.literal_eval(args.ptn_widths_stn)
-
+    # # For debug
+    # if args.CUSTOM_SET_PATH=='../data/trunkBranchLeaf_sub.old':
+    #     args.resume='../results/trunkBranchLeaf_sub/best/cv1/model.pth.tar'
+    #     args.epochs=0
+    #     args.cvfold=2
+    #     args.model_config="gru_10_0,f_3"
+    #     args.test_multisamp_n=1
 
     print('Will save to ' + args.odir)
     if not os.path.exists(args.odir):
@@ -140,6 +146,10 @@ def main():
         import vkitti_dataset
         dbinfo = vkitti_dataset.get_info(args)
         create_dataset = vkitti_dataset.get_datasets
+    elif args.dataset == 'trunkbranchleaf':
+        import trunkbranchleaf_dataset
+        dbinfo = trunkbranchleaf_dataset.get_info(args)
+        create_dataset = trunkbranchleaf_dataset.get_datasets
     elif args.dataset=='custom_dataset':
         import custom_dataset #<- to write!
         dbinfo = custom_dataset.get_info(args)
@@ -150,6 +160,7 @@ def main():
     # Create model and optimizer
     if args.resume != '':
         if args.resume=='RESUME': args.resume = args.odir + '/model.pth.tar'
+        print('Resume model {}...'.format(args.resume))
         model, optimizer, stats = resume(args, dbinfo)
     else:
         model = create_model(args, dbinfo)

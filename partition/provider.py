@@ -12,10 +12,10 @@ import random
 import glob
 from plyfile import PlyData, PlyElement
 import numpy as np
-#from numpy import genfromtxt
+from numpy import genfromtxt
 import pandas as pd
 import h5py
-#import laspy
+import laspy
 from sklearn.neighbors import NearestNeighbors
 
 
@@ -441,18 +441,21 @@ def pcfeatures2ascii(filename, xyz, rgb, labels, objects, elevation, geof, pred=
 
 
 #------------------------------------------------------------------------------
-def read_las(filename):
-    """convert from a las file with no rgb"""
+def read_las(filename, center=True):
+    """convert from a las file with no rgb
+    :param center converts x,y,z to x-mean(x),y-mean(y),z-min(z)
+    """
     #---read the ply file--------
     try:
-        inFile = laspy.file.File(filename, mode='r')
+        las = laspy.file.File(filename, mode='r')
     except NameError:
         raise ValueError("laspy package not found. uncomment import in /partition/provider and make sure it is installed in your environment")
-    N_points = len(inFile)
-    x = np.reshape(inFile.x, (N_points,1))
-    y = np.reshape(inFile.y, (N_points,1))
-    z = np.reshape(inFile.z, (N_points,1))
-    xyz = np.hstack((x,y,z)).astype('f4')
+
+    if center:
+        xyz = np.transpose(np.vstack((las.x-np.mean(las.x),las.y-np.mean(las.y),las.z-np.min(las.z)))).astype('f4')
+    else:
+        xyz = np.transpose(np.vstack((las.x, las.y, las.z))).astype('f4')
+
     return xyz
 #------------------------------------------------------------------------------
 def write_ply_obj(filename, xyz, rgb, labels, object_indices):

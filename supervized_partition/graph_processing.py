@@ -33,7 +33,7 @@ from partition.provider import *
 def main():
     parser = argparse.ArgumentParser(description='Large-scale Point Cloud Semantic Segmentation with Superpoint Graphs')
     
-    parser.add_argument('--ROOT_PATH', default='/home/jules/Project/superpoint_graph/trunkbranchleaf')
+    parser.add_argument('--ROOT_PATH', default='/home/boissieu/git/superpoint_graph/data/trunkBranchLeaf')
     parser.add_argument('--dataset', default='trunkbranchleaf')
     #parameters
     parser.add_argument('--compute_geof', default=1, type=int, help='compute hand-crafted features of the local geometry')
@@ -155,7 +155,7 @@ def main():
                         xyz, rgb, labels, o = libply_c.prune(xyz.astype('f4'), args.voxel_width, rgb.astype('uint8'), labels.astype('uint8'), np.zeros(1, dtype='uint8'), n_labels, 0)
                     #---compute nn graph-------
                 elif args.dataset in ['woodleaf', 'trunkbranchleaf']:
-                    xyz, labels = read_ascii(data_file)
+                    xyz, labels = read_xyz(data_file)
                     rgb = []
 
                 n_ver = xyz.shape[0]    
@@ -196,7 +196,6 @@ def main():
                                                             graph_nn["source"].astype('uint32'),
                                                             graph_nn["target"].astype('uint32'),
                                                             (is_transition == 0).astype('uint8'), 0)
-
                 if (args.compute_geof):
                     geof = libply_c.compute_geof(xyz, local_neighbors, args.k_nn_local).astype('float32')
                     geof[:,3] = 2. * geof[:,3]
@@ -213,7 +212,8 @@ def main():
                 #compute the xy normalized position
                 ma, mi = np.max(xyz[:,:2],axis=0,keepdims=True), np.min(xyz[:,:2],axis=0,keepdims=True)
                 xyn = (xyz[:,:2] - mi) / (ma - mi + 1e-8) #global position
-                    
+                pcfeatures2ascii(str_file[:-3] + "_objects.xyz", xyz, rgb, labels, objects, elevation, geof)
+
                 write_structure(str_file, xyz, rgb, graph_nn, local_neighbors.reshape([n_ver, args.k_nn_local]), \
                     is_transition, labels, objects, geof, elevation, xyn)
                     
@@ -291,14 +291,20 @@ def get_vkitti_info(args):
         'classes': 13,
         'inv_class_map': {0:'Terrain', 1:'Tree', 2:'Vegetation', 3:'Building', 4:'Road', 5:'GuardRail', 6:'TrafficSign', 7:'TrafficLight', 8:'Pole', 9:'Misc', 10:'Truck', 11:'Car', 12:'Van', 13:'None'},
     }
-def get_test_info(args):
+def get_woodleaf_info(args):
     #for now, no edge attributes
     return {
         'classes': 2,
         'inv_class_map': {0:'wood', 1:'leaves'},
     }
-    
-    
+
+def get_trunkbranchleaf_info(args):
+    #for now, no edge attributes
+    return {
+        'classes': 3,
+        'inv_class_map': {0:'trunk', 1:'branch', 2:'leaf'},
+    }
+
                 
 def create_s3dis_datasets(args, test_seed_offset=0):
     """ Gets training and test datasets. """
@@ -377,10 +383,20 @@ def create_trunkbranchleaf_datasets(args, test_seed_offset=0):
         if fname.endswith(".h5"):
             testlist.append(path + fname)
 
+    # debug
+    # trainlist=trainlist[0:5]
+    # testlist = testlist[0:2]
+    # train_dataset=graph_preloader(trainlist, args)
+    # test_dataset=graph_preloader(testlist, args)
+    #
+    # return tnt.dataset.ListDataset(trainlist,
+    #                                functools.partial(graph_loader, train=True, args=args, db_path=args.ROOT_PATH, preloaded=train_dataset)), \
+    #        tnt.dataset.ListDataset(testlist,
+    #                                functools.partial(graph_loader, train=False, args=args, db_path=args.ROOT_PATH, preloaded=test_dataset))
     return tnt.dataset.ListDataset(trainlist,
-                                   functools.partial(graph_loader, train=True, args=args, db_path=args.ROOT_PATH)), \
+                                   functools.partial(graph_loader, train=True, args=args, db_path=args.ROOT_PATH, preloaded=False)), \
            tnt.dataset.ListDataset(testlist,
-                                   functools.partial(graph_loader, train=False, args=args, db_path=args.ROOT_PATH))
+                                   functools.partial(graph_loader, train=False, args=args, db_path=args.ROOT_PATH, preloaded=False))
 
 def create_sema3d_datasets(args, test_seed_offset=0):
     """ Gets training and test datasets. """
@@ -417,10 +433,15 @@ def subgraph_sampling(n_ver, edg_source, edg_target, max_ver):
     """ Select a subgraph of the input graph of max_ver verices"""
     return libply_c.random_subgraph(n_ver)
 
-def graph_loader(entry, train, args, db_path, test_seed_offset=0, full_cpu = False):
+def graph_loader(entry, train, args, db_path, test_seed_offset=0, full_cpu = False, preloaded=False):
     """ Load the point cloud and the graph structure """
-    xyz, rgb, edg_source, edg_target, is_transition, local_geometry\
-        , labels, objects, elevation, xyn = read_structure(entry, 'geof' in args.ver_value)
+    if preloaded==False:
+        xyz, rgb, edg_source, edg_target, is_transition, local_geometry\
+            , labels, objects, elevation, xyn = read_structure(entry, 'geof' in args.ver_value)
+    else:
+        xyz, rgb, edg_source, edg_target, is_transition, local_geometry \
+            , labels, objects, elevation, xyn = preloaded[entry]
+
     short_name= entry.split(os.sep)[-2]+'/'+entry.split(os.sep)[-1]
 
     rgb = rgb/255
@@ -513,6 +534,18 @@ def graph_loader(entry, train, args, db_path, test_seed_offset=0, full_cpu = Fal
     clouds = torch.from_numpy(clouds)
     clouds_global = torch.from_numpy(clouds_global)
     return short_name, edg_source, edg_target, is_transition, labels, objects, clouds, clouds_global, nei, xyz
+
+def graph_preloader(entrylist, args):
+    fl={}
+    for entry in entrylist:
+        # xyz, rgb, edg_source, edg_target, is_transition, local_geometry\
+        #     , labels, objects, elevation, xyn = read_structure(entry, 'geof' in args.ver_value)
+        print('Preloading file {}...'.format(entry))
+        fl.update({entry:read_structure(entry, 'geof' in args.ver_value)})
+
+    return fl
+
+
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 def graph_collate(batch):
