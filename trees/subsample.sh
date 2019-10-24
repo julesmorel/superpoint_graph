@@ -30,7 +30,7 @@ do
             fullOut="${fullNoExt}_subsampled.xyz"
 
 
-            cloudcompare.CloudCompare -SILENT -O $fullIn -C_EXPORT_FMT ASC -SS SPATIAL 0.005
+            xvfb-run -a cloudcompare.CloudCompare -SILENT -O $fullIn -C_EXPORT_FMT ASC -SS SPATIAL 0.005
 
             patOut="${fullNoExt}*.asc"
             find . -type f -name "${fullNoExt}*.asc" -exec mv {} "${fullOut}" \;
